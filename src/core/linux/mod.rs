@@ -398,7 +398,11 @@ pub fn play_from_steam() -> i32 {
     if let Some((server, account)) = &echorelay {
         let cancel = std::sync::atomic::AtomicBool::new(false);
         let set_up = crate::core::launcher::relay::set_up_live(&v, &cancel, &mut |_| {})
-            .and_then(|()| crate::core::launcher::relay::write_live_config(&v, server, account));
+            .and_then(|()| crate::core::launcher::relay::write_live_config(&v, server, account))
+            .and_then(|()| {
+                let mods = crate::core::launcher::mods::echorelay_plugins(&v);
+                crate::core::launcher::relay::sync_live_mods(&v, &mods)
+            });
         if let Err(e) = set_up {
             tracing::error!("--play: {} not set up for EchoRelay: {e:#}", v.id);
             return 2;

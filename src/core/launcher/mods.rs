@@ -56,6 +56,9 @@ pub enum Loader {
     None,
     /// nEVR runtime, at this version (empty when it doesn't say).
     Nevr { version: String },
+    /// The launcher's EchoLoader, in nEVR's place while the live build plays on an
+    /// EchoRelay server (`relay::set_up_live`).
+    EchoRelay,
     /// A DLL the launcher doesn't know.
     Unknown,
 }
@@ -76,6 +79,9 @@ pub fn classify(slot: Option<&[u8]>, slot_sha: Option<&str>) -> Loader {
         return Loader::Nevr {
             version: nevr::version_in(bytes).unwrap_or_default(),
         };
+    }
+    if slot_sha.is_some_and(|s| s.eq_ignore_ascii_case(super::relay::LOADER_SHA256)) {
+        return Loader::EchoRelay;
     }
     if slot_sha.is_some_and(|s| s.eq_ignore_ascii_case(STOCK_SLOT_SHA256)) {
         Loader::None
@@ -1086,7 +1092,7 @@ pub fn prepare(v: &InstalledVersion, servers: &Servers) -> Result<()> {
     let catalog = ModCatalog::cached();
     let local = nevr::local_plugins(v);
     let served = if overlay.enabled() {
-        served_pack(v, &overlay)
+        served_pack(v, &overlay, false)
     } else {
         None
     };
@@ -1110,6 +1116,21 @@ pub fn prepare(v: &InstalledVersion, servers: &Servers) -> Result<()> {
     }
     let lines = config_lines(v, &overlay, &catalog, local, served.as_ref());
     nevr::write_config(v, &lines, local, backend.as_ref())
+}
+
+/// The plugins the live build `v` loads on an EchoRelay server, where EchoLoader stands
+/// in for nEVR (`relay::sync_live_mods`): the list [`prepare`] gives nEVR. EchoLoader loads
+/// every plugin before the game's code runs, so a content pack is served whatever nEVR
+/// the version has.
+pub fn echorelay_plugins(v: &InstalledVersion) -> Vec<PluginLine> {
+    let overlay = Overlay::read(&choices_path(v));
+    let served = if overlay.enabled() {
+        served_pack(v, &overlay, true)
+    } else {
+        None
+    };
+    let catalog = ModCatalog::cached();
+    config_lines(v, &overlay, &catalog, nevr::local_plugins(v), served.as_ref())
 }
 
 /// The content packs installed in `v` (on or off), as the Mods page lists them.
@@ -1252,9 +1273,10 @@ fn config_lines(
     lines
 }
 
-/// The pack nEVR serves at this start: the first one on, when its files are all there,
-/// the overlay plugin is there and nEVR loads plugins early. Otherwise none, logged.
-fn served_pack(v: &InstalledVersion, overlay: &Overlay) -> Option<PackRecord> {
+/// The pack served at this start: the first one on, when its files are all there, the
+/// overlay plugin is there and its loader loads plugins early (EchoLoader, `echoloader`,
+/// always does; nEVR from its early load pass on). Otherwise none, logged.
+fn served_pack(v: &InstalledVersion, overlay: &Overlay, echoloader: bool) -> Option<PackRecord> {
     let pack = overlay.packs().into_iter().find(|p| p.enabled)?;
     let bin = v.bin_dir();
     if !pack_present(v, &pack) {
@@ -1269,7 +1291,7 @@ fn served_pack(v: &InstalledVersion, overlay: &Overlay) -> Option<PackRecord> {
         );
         return None;
     }
-    if !packs::nevr_loads_early(&bin) {
+    if !echoloader && !packs::nevr_loads_early(&bin) {
         tracing::warn!(
             "{}: this nEVR can't load {} before the game reads its data: left out",
             pack.name,

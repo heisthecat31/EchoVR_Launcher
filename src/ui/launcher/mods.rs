@@ -438,6 +438,7 @@ fn loader_card(
             design::QUEST_ON,
         ),
         Loader::None => ("No mod loader".into(), "Not installed", design::GREY),
+        Loader::EchoRelay => ("EchoLoader".into(), "EchoRelay", design::QUEST_ON),
         Loader::Unknown => ("Unknown BugSplat64.dll".into(), "Not ours", design::DANGER),
     };
     let ty = y + dz(30.0);
@@ -477,6 +478,7 @@ fn loader_card(
         }
         // The community update brings it: nothing to do here.
         Loader::None => {}
+        Loader::EchoRelay => {}
         Loader::Unknown => {}
     }
     let bin = v.bin_dir();
@@ -592,6 +594,7 @@ fn loader_text(view: &ModView) -> String {
             }
         }
         Loader::None => "Echo VR runs without plugins for now. nEVR runtime (Discord sign-in, friends and parties in the game, and plugins) comes with the community update, the next time this version updates.".into(),
+        Loader::EchoRelay => "Echo VR plays on an EchoRelay server: EchoLoader stands in for nEVR, with EchoRelay's patch and the mods that are on here. Back to EchoVRCE in the Game server plugin puts nEVR back.".into(),
         Loader::Unknown => "BugSplat64.dll here is neither the game's nor nEVR runtime. Verify on the Install page puts the right one back.".into(),
     }
 }
