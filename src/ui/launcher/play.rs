@@ -1495,8 +1495,8 @@ fn start(d: &mut Dashboard, ctx: &egui::Context, lobby: Option<Join>) {
             return;
         }
         // The mods the Mods page has on, for EchoLoader beside EchoRelay's patch.
-        let mods = crate::core::launcher::mods::echorelay_plugins(&v);
-        if let Err(e) = relay::sync_live_mods(&v, &mods) {
+        let hands = d.state.profile.hands(d.state.echoxr_hands);
+        if let Err(e) = crate::core::launcher::mods::before_echorelay_start(&v, hands) {
             d.dialogs.error(
                 "Couldn't set up the mods for EchoRelay",
                 &format!("{e:#}"),

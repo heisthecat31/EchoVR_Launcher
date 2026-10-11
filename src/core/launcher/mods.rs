@@ -1121,11 +1121,21 @@ pub fn prepare(v: &InstalledVersion, servers: &Servers) -> Result<()> {
     nevr::write_config(v, &lines, local, backend.as_ref())
 }
 
+/// Before starting the live build `v` on an EchoRelay server, where EchoLoader stands in
+/// for nEVR: EchoXR Hands' plugin in `plugins/` or out of it (as [`before_start`] does),
+/// then the mods that are on beside EchoRelay's patch.
+pub fn before_echorelay_start(v: &InstalledVersion, hands: bool) -> Result<()> {
+    if let Err(e) = crate::core::echoxr_hands::apply(&v.bin_dir(), hands) {
+        tracing::warn!("hand tracking: {e:#}");
+    }
+    super::relay::sync_live_mods(v, &echorelay_plugins(v))
+}
+
 /// The plugins the live build `v` loads on an EchoRelay server, where EchoLoader stands
 /// in for nEVR (`relay::sync_live_mods`): the list [`prepare`] gives nEVR. EchoLoader loads
 /// every plugin before the game's code runs, so a content pack is served whatever nEVR
 /// the version has.
-pub fn echorelay_plugins(v: &InstalledVersion) -> Vec<PluginLine> {
+fn echorelay_plugins(v: &InstalledVersion) -> Vec<PluginLine> {
     let overlay = Overlay::read(&choices_path(v));
     let served = if overlay.enabled() {
         served_pack(v, &overlay, true)
