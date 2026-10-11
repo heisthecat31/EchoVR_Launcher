@@ -304,8 +304,9 @@ pub fn valid_account(account: &RelayAccount) -> bool {
 
 /// The live build's lock on an EchoRelay server.
 const LIVE_LOCK: &str = "rad15_live";
-/// Where EchoLoader finds the live build's plugins on EchoRelay: a folder of its own, so
-/// nEVR's mods in `plugins/` stay out (they're nEVR's).
+/// Where EchoLoader finds the live build's plugins on EchoRelay: a folder of its own, with
+/// EchoRelay's patch and copies of the mods that are on ([`sync_live_mods`]), so `plugins/`
+/// stays nEVR's.
 const LIVE_PLUGINS: &str = "plugins-echorelay";
 /// nEVR, beside its slot while EchoLoader is in it.
 pub const NEVR_ASIDE: &str = "BugSplat64.nevr.dll";
