@@ -385,11 +385,12 @@ fn install_live(bin: &Path, loader: &[u8], patch: &[u8]) -> Result<()> {
 }
 
 /// Puts the mods `lines` (what nEVR would load, `mods::echorelay_plugins`) beside
-/// EchoRelay's patch for EchoLoader: each enabled plugin, with its files of the same name
-/// (a plugin's `.ini`), copied from `plugins/`; what an earlier start put there and isn't
-/// listed now out again; their args in `echoloader.local.json`, marked as the launcher's.
-/// Without it EchoLoader loads only the patch, and a content pack's overlay isn't there
-/// to serve the pack.
+/// EchoRelay's patch for EchoLoader: each enabled plugin with its files of the same name
+/// (a plugin's `.ini`), and the plugins' settings files, which may have names of their
+/// own ([`plugin_settings::is_store_file`](super::plugin_settings::is_store_file)), copied
+/// from `plugins/`; what an earlier start put there and isn't there now out again; their
+/// args in `echoloader.local.json`, marked as the launcher's. Without it EchoLoader loads
+/// only the patch, and a content pack's overlay isn't there to serve the pack.
 pub fn sync_live_mods(v: &InstalledVersion, lines: &[PluginLine]) -> Result<()> {
     let bin = v.bin_dir();
     let from = super::mods::plugins_dir(v);
@@ -413,17 +414,20 @@ pub fn sync_live_mods(v: &InstalledVersion, lines: &[PluginLine]) -> Result<()> 
             })
             .unwrap_or_default()
     };
+    let copies: Vec<(String, PathBuf)> = files(&from)
+        .into_iter()
+        .filter(|(name, _)| {
+            stems.contains(&stem(name)) || super::plugin_settings::is_store_file(name)
+        })
+        .collect();
     for (name, path) in files(&dir) {
-        if !name.eq_ignore_ascii_case(PATCH_PLUGIN) && !stems.contains(&stem(&name)) {
+        if !name.eq_ignore_ascii_case(PATCH_PLUGIN) && !copies.iter().any(|(n, _)| *n == name) {
             std::fs::remove_file(&path).with_context(|| format!("remove {}", path.display()))?;
         }
     }
-    for (name, path) in files(&from) {
-        if !stems.contains(&stem(&name)) {
-            continue;
-        }
-        let bytes = std::fs::read(&path).with_context(|| format!("read {}", path.display()))?;
-        let dst = dir.join(&name);
+    for (name, path) in &copies {
+        let bytes = std::fs::read(path).with_context(|| format!("read {}", path.display()))?;
+        let dst = dir.join(name);
         if std::fs::read(&dst).ok().as_deref() != Some(bytes.as_slice()) {
             write_atomic(&dst, &bytes)?;
         }
@@ -475,7 +479,8 @@ fn live_config_json(server: &str, account: &RelayAccount) -> String {
     serde_json::to_string_pretty(&c).unwrap_or_default()
 }
 
-/// Whether the `config.json` at `path` is the one the launcher wrote for EchoRelay.
+/// Whether the JSON file at `path` (`config.json`, `echoloader.local.json`) is the one the
+/// launcher wrote for EchoRelay.
 fn ours(path: &Path) -> bool {
     std::fs::read_to_string(path)
         .ok()
@@ -550,6 +555,8 @@ mod tests {
             "PowerBoost.ini",
             "NvrContentOverlay.dll",
             "Off.dll",
+            "Off.pdb",
+            "combat-settings.cfg",
         ] {
             std::fs::write(plugins.join(f), f).unwrap();
         }
@@ -576,11 +583,12 @@ mod tests {
             "PowerBoost.dll",
             "PowerBoost.ini",
             "NvrContentOverlay.dll",
+            "combat-settings.cfg",
             PATCH_PLUGIN,
         ] {
             assert!(live.join(f).is_file(), "{f} beside the patch");
         }
-        assert!(!live.join("Off.dll").exists());
+        assert!(!live.join("Off.dll").exists() && !live.join("Off.pdb").exists());
         assert!(!live.join("Stale.dll").exists());
         let local: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(bin.join(LOADER_LOCAL)).unwrap())
@@ -590,6 +598,13 @@ mod tests {
             "echocombat"
         );
         assert!(local["overrides"].get("PowerBoost.dll").is_none());
+        // The next start with only PowerBoost on: the pack's overlay and its args go.
+        sync_live_mods(&v, &lines[..1]).unwrap();
+        assert!(
+            live.join("PowerBoost.ini").is_file() && live.join("combat-settings.cfg").is_file()
+        );
+        assert!(!live.join("NvrContentOverlay.dll").exists());
+        assert!(!bin.join(LOADER_LOCAL).exists());
         assert!(leave_live(&v).unwrap());
         assert!(!bin.join(LOADER_LOCAL).exists());
         assert!(!live.exists());
