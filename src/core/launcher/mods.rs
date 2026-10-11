@@ -64,9 +64,10 @@ pub enum Loader {
 }
 
 impl Loader {
-    /// Whether the launcher can change the mods (nEVR is there).
+    /// Whether the launcher can change the mods: nEVR is there, or EchoLoader on an
+    /// EchoRelay server (its next start takes the mods that are on along).
     pub fn editable(&self) -> bool {
-        matches!(self, Loader::Nevr { .. })
+        matches!(self, Loader::Nevr { .. } | Loader::EchoRelay)
     }
 }
 
@@ -736,7 +737,8 @@ pub struct ModView {
     pub local_plugins: bool,
     /// The packs the launcher installed ([`super::packs`]).
     pub packs: Vec<PackView>,
-    /// The nEVR in the slot loads plugins early: content packs work.
+    /// The loader in the slot loads plugins early (EchoLoader always does, nEVR from its
+    /// early load pass on): content packs work.
     pub loads_early: bool,
     /// Something repacked the game data (an old installer): content packs need the stock
     /// files.
@@ -848,6 +850,7 @@ pub fn read(v: &InstalledVersion) -> ModView {
     for p in plugins.iter_mut().filter(|p| p.present) {
         p.settings = plugin_settings::read(&dir, p, catalog.entry_for(&p.file));
     }
+    let loads_early = loader == Loader::EchoRelay || packs::nevr_loads_early(&bin);
     ModView {
         enabled: overlay.enabled(),
         plugins,
@@ -867,7 +870,7 @@ pub fn read(v: &InstalledVersion) -> ModView {
                 record,
             })
             .collect(),
-        loads_early: packs::nevr_loads_early(&bin),
+        loads_early,
         repacked: packs::repacked(&bin),
     }
 }
@@ -2102,7 +2105,15 @@ mod tests {
         assert!(classify(Some(nevr), None).editable());
         assert_eq!(classify(Some(b"MZ"), Some(STOCK_SLOT_SHA256)), Loader::None);
         assert_eq!(classify(None, None), Loader::None);
-        // EchoLoader 2 (the event builds' loader, not the live build's), or anything else.
+        // The launcher's EchoLoader, in nEVR's place on an EchoRelay server: its mods
+        // still change here.
+        let echoloader = classify(
+            Some(b"MZ ECHOLOADER_ID:2.0.0:open"),
+            Some(&super::super::relay::LOADER_SHA256.to_uppercase()),
+        );
+        assert_eq!(echoloader, Loader::EchoRelay);
+        assert!(echoloader.editable());
+        // Another EchoLoader build, or anything else.
         assert_eq!(
             classify(Some(b"MZ ECHOLOADER_ID:2.0.0:open"), Some("00")),
             Loader::Unknown
