@@ -545,7 +545,12 @@ mod tests {
         let bin = v.bin_dir();
         let plugins = crate::core::launcher::mods::plugins_dir(&v);
         std::fs::create_dir_all(&plugins).unwrap();
-        for f in ["PowerBoost.dll", "PowerBoost.ini", "NvrContentOverlay.dll", "Off.dll"] {
+        for f in [
+            "PowerBoost.dll",
+            "PowerBoost.ini",
+            "NvrContentOverlay.dll",
+            "Off.dll",
+        ] {
             std::fs::write(plugins.join(f), f).unwrap();
         }
         install_live(&bin, b"loader", b"patch").unwrap();
@@ -554,7 +559,12 @@ mod tests {
         let mut args = serde_json::Map::new();
         args.insert("active".into(), "echocombat".into());
         let line = |file: &str, enabled: bool, args: serde_json::Map<String, serde_json::Value>| {
-            PluginLine { file: file.into(), enabled, args, early: false }
+            PluginLine {
+                file: file.into(),
+                enabled,
+                args,
+                early: false,
+            }
         };
         let lines = vec![
             line("PowerBoost.dll", true, Default::default()),
@@ -562,14 +572,23 @@ mod tests {
             line("Off.dll", false, Default::default()),
         ];
         sync_live_mods(&v, &lines).unwrap();
-        for f in ["PowerBoost.dll", "PowerBoost.ini", "NvrContentOverlay.dll", PATCH_PLUGIN] {
+        for f in [
+            "PowerBoost.dll",
+            "PowerBoost.ini",
+            "NvrContentOverlay.dll",
+            PATCH_PLUGIN,
+        ] {
             assert!(live.join(f).is_file(), "{f} beside the patch");
         }
         assert!(!live.join("Off.dll").exists());
         assert!(!live.join("Stale.dll").exists());
         let local: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(bin.join(LOADER_LOCAL)).unwrap()).unwrap();
-        assert_eq!(local["overrides"]["NvrContentOverlay.dll"]["args"]["active"], "echocombat");
+            serde_json::from_str(&std::fs::read_to_string(bin.join(LOADER_LOCAL)).unwrap())
+                .unwrap();
+        assert_eq!(
+            local["overrides"]["NvrContentOverlay.dll"]["args"]["active"],
+            "echocombat"
+        );
         assert!(local["overrides"].get("PowerBoost.dll").is_none());
         assert!(leave_live(&v).unwrap());
         assert!(!bin.join(LOADER_LOCAL).exists());
@@ -590,9 +609,17 @@ mod tests {
         std::fs::write(bin.join(LOADER_LOCAL), "{\"overrides\": {}}").unwrap();
         let mut args = serde_json::Map::new();
         args.insert("active".into(), "echocombat".into());
-        let lines = vec![PluginLine { file: "NvrContentOverlay.dll".into(), enabled: true, args, early: true }];
+        let lines = vec![PluginLine {
+            file: "NvrContentOverlay.dll".into(),
+            enabled: true,
+            args,
+            early: true,
+        }];
         sync_live_mods(&v, &lines).unwrap();
-        assert_eq!(std::fs::read_to_string(bin.join(LOADER_LOCAL)).unwrap(), "{\"overrides\": {}}");
+        assert_eq!(
+            std::fs::read_to_string(bin.join(LOADER_LOCAL)).unwrap(),
+            "{\"overrides\": {}}"
+        );
         leave_live(&v).unwrap();
         assert!(bin.join(LOADER_LOCAL).exists());
     }

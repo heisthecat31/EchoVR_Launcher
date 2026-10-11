@@ -1130,7 +1130,13 @@ pub fn echorelay_plugins(v: &InstalledVersion) -> Vec<PluginLine> {
         None
     };
     let catalog = ModCatalog::cached();
-    config_lines(v, &overlay, &catalog, nevr::local_plugins(v), served.as_ref())
+    config_lines(
+        v,
+        &overlay,
+        &catalog,
+        nevr::local_plugins(v),
+        served.as_ref(),
+    )
 }
 
 /// The content packs installed in `v` (on or off), as the Mods page lists them.
